@@ -42,9 +42,33 @@ fi
 # headers required by multi-threaded WebAssembly.
 if [ -n "$QPKG_APACHE_CONF" ] && [ -f "$QPKG_DIR/$QPKG_APACHE_CONF" ] && [ -d /etc/config/apache/extra ]; then
     /bin/cp -f "$QPKG_DIR/$QPKG_APACHE_CONF" "/etc/config/apache/extra/apache-$QPKG_NAME.conf"
-    if [ -x /etc/init.d/Qthttpd.sh ]; then
+    # QTS's apache.conf lists its drop-ins explicitly -- there is no glob include,
+    # so the file above is inert until it is referenced.
+    APACHE_MAIN=/etc/config/apache/apache.conf
+    INCLUDE_LINE="Include /etc/config/apache/extra/apache-$QPKG_NAME.conf"
+    if [ -f "$APACHE_MAIN" ] && ! /bin/grep -qxF "$INCLUDE_LINE" "$APACHE_MAIN"; then
+        printf '\n# added by the %s QPKG\n%s\n' "$QPKG_NAME" "$INCLUDE_LINE" >> "$APACHE_MAIN"
+    fi
+    # Graceful reload: a full Qthttpd restart drops the App Center session
+    # that is running this install.
+    if [ -x /usr/local/apache/bin/apachectl ]; then
+        /usr/local/apache/bin/apachectl -k graceful >/dev/null 2>&1 || true
+    elif [ -x /etc/init.d/Qthttpd.sh ]; then
         /etc/init.d/Qthttpd.sh restart >/dev/null 2>&1 || true
     fi
+fi
+
+# App Center icons: QTS serves them from /home/httpd/RSS/images/<name>[_80|_gray].gif,
+# which on stock packages are symlinks to the app dir's .qpkg_icon_*.gif.
+for icon in .qpkg_icon.gif .qpkg_icon_gray.gif .qpkg_icon_80.gif; do
+    if [ -f "./$icon" ]; then
+        /bin/cp -f "./$icon" "$QPKG_DIR/$icon"
+    fi
+done
+if [ -d /home/httpd/RSS/images ]; then
+    [ -f "$QPKG_DIR/.qpkg_icon.gif" ] && /bin/ln -sfn "$QPKG_DIR/.qpkg_icon.gif" "/home/httpd/RSS/images/$QPKG_NAME.gif"
+    [ -f "$QPKG_DIR/.qpkg_icon_gray.gif" ] && /bin/ln -sfn "$QPKG_DIR/.qpkg_icon_gray.gif" "/home/httpd/RSS/images/$QPKG_NAME_gray.gif"
+    [ -f "$QPKG_DIR/.qpkg_icon_80.gif" ] && /bin/ln -sfn "$QPKG_DIR/.qpkg_icon_80.gif" "/home/httpd/RSS/images/$QPKG_NAME_80.gif"
 fi
 
 if [ -f ./package_routines ]; then

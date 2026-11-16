@@ -37,8 +37,13 @@ pkg_pre_remove() {
         /bin/rm -f "/etc/init.d/$QPKG_NAME.sh"
     fi
     /bin/rm -f "/home/httpd/cgi-bin/qpkg/$QPKG_NAME"
+    /bin/rm -f "/home/httpd/RSS/images/$QPKG_NAME.gif" "/home/httpd/RSS/images/$QPKG_NAME_80.gif" "/home/httpd/RSS/images/$QPKG_NAME_gray.gif"
     if [ -n "$QPKG_APACHE_CONF" ] && [ -f "/etc/config/apache/extra/apache-$QPKG_NAME.conf" ]; then
         /bin/rm -f "/etc/config/apache/extra/apache-$QPKG_NAME.conf"
+        APACHE_MAIN=/etc/config/apache/apache.conf
+        if [ -f "$APACHE_MAIN" ]; then
+            /bin/grep -vxF "Include /etc/config/apache/extra/apache-$QPKG_NAME.conf" "$APACHE_MAIN" > "$APACHE_MAIN.tmp" && /bin/mv "$APACHE_MAIN.tmp" "$APACHE_MAIN"
+        fi
         if [ -x /usr/local/apache/bin/apachectl ]; then
             /usr/local/apache/bin/apachectl -k graceful >/dev/null 2>&1
         elif [ -x /etc/init.d/Qthttpd.sh ]; then
