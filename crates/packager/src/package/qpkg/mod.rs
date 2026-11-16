@@ -6,7 +6,7 @@
 //!
 //! A `.qpkg` file is a self-extracting `/bin/sh` script: the script header is
 //! followed by an uncompressed tar archive holding `control.tar.gz` (which
-//! contains `qpkg.cfg`, `package_routines`, `install.sh` and the App Center
+//! contains `qpkg.cfg`, `package_routines`, `qinstall.sh` and the App Center
 //! icons), followed by `data.tar.gz`, the payload that gets extracted into
 //! `<install volume>/.qpkg/<name>`.
 //!
@@ -101,7 +101,7 @@ offset=$((script_len + __CTRL_LEN__))
     exit 1
 }
 
-( cd "$_EXTRACT_DIR" && QPKG_ROOT="$QPKG_ROOT" QPKG_DIR="$QPKG_DIR" /bin/sh ./install.sh )
+( cd "$_EXTRACT_DIR" && QPKG_ROOT="$QPKG_ROOT" QPKG_DIR="$QPKG_DIR" /bin/sh ./qinstall.sh )
 _rc=$?
 /bin/rm -rf "$_EXTRACT_DIR"
 
@@ -305,8 +305,21 @@ fn write_control_files(
     let routines_path = control_dir.join("package_routines");
     fs::write(&routines_path, routines).map_err(|e| Error::IoWithPath(routines_path, e))?;
 
-    let install_path = control_dir.join("install.sh");
+    // QTS App Center validates the control archive and expects the installer to
+    // be named `qinstall.sh`; it is what the self-extracting header runs.
+    let install_path = control_dir.join("qinstall.sh");
     fs::write(&install_path, INSTALL_SCRIPT).map_err(|e| Error::IoWithPath(install_path, e))?;
+
+    // `built_info` is also part of QDK-produced packages (`time = YYYYMMDD`).
+    let built_info = format!(
+        "time = {:04}{:02}{:02}\n",
+        time::OffsetDateTime::now_utc().year(),
+        u8::from(time::OffsetDateTime::now_utc().month()),
+        time::OffsetDateTime::now_utc().day()
+    );
+    let built_info_path = control_dir.join("built_info");
+    fs::write(&built_info_path, built_info)
+        .map_err(|e| Error::IoWithPath(built_info_path, e))?;
 
     if let Some(icons_dir) = qpkg.and_then(|q| q.icons_dir.as_ref()) {
         for (from, to) in [
