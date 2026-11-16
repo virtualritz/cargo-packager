@@ -436,10 +436,12 @@ pub(crate) fn package(ctx: &Context) -> crate::Result<Vec<PathBuf>> {
         ..
     } = ctx;
 
-    let name = config
-        .qpkg()
-        .and_then(|q| q.name.clone())
-        .unwrap_or(config.main_binary_name()?);
+    // `unwrap_or` would evaluate the binary lookup even when a name is set, so
+    // packaged web-only projects (no binaries at all) would fail here.
+    let name = match config.qpkg().and_then(|q| q.name.clone()) {
+        Some(name) => name,
+        None => config.main_binary_name()?,
+    };
     let version = config
         .qpkg()
         .and_then(|q| q.version.clone())
