@@ -39,7 +39,9 @@ pkg_pre_remove() {
     /bin/rm -f "/home/httpd/cgi-bin/qpkg/$QPKG_NAME"
     if [ -n "$QPKG_APACHE_CONF" ] && [ -f "/etc/config/apache/extra/apache-$QPKG_NAME.conf" ]; then
         /bin/rm -f "/etc/config/apache/extra/apache-$QPKG_NAME.conf"
-        if [ -x /etc/init.d/Qthttpd.sh ]; then
+        if [ -x /usr/local/apache/bin/apachectl ]; then
+            /usr/local/apache/bin/apachectl -k graceful >/dev/null 2>&1
+        elif [ -x /etc/init.d/Qthttpd.sh ]; then
             /etc/init.d/Qthttpd.sh restart >/dev/null 2>&1
         fi
     fi
@@ -95,7 +97,11 @@ script_len=__SCRIPT_LEN__
 }
 
 offset=$((script_len + __CTRL_LEN__))
-/bin/dd if="${0}" bs=$offset skip=1 2>/dev/null | /bin/head -c __DATA_LEN__ > "$_EXTRACT_DIR/data.tar.gz" || {
+# QTS ships busybox without /bin/head; the coreutils path is /usr/bin/head.
+HEAD_BIN=/bin/head
+[ -x "$HEAD_BIN" ] || HEAD_BIN=/usr/bin/head
+[ -x "$HEAD_BIN" ] || HEAD_BIN=$(command -v head)
+/bin/dd if="${0}" bs=$offset skip=1 2>/dev/null | "$HEAD_BIN" -c __DATA_LEN__ > "$_EXTRACT_DIR/data.tar.gz" || {
     echo "Failed to extract the package data." >&2
     /bin/rm -rf "$_EXTRACT_DIR"
     exit 1
@@ -547,7 +553,7 @@ mod tests {
         assert!(header.starts_with("#!/bin/sh\n"));
         assert!(header.contains("QPKG_NAME=\"probe\""));
         assert!(header.contains("offset=$((script_len + 4096))"));
-        assert!(header.contains("head -c 8192"));
+        assert!(header.contains("\"$HEAD_BIN\" -c 8192"));
         assert!(header.contains("= \"aarch64\""));
     }
 
